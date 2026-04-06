@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hangman Studio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="ambient ambient-left" aria-hidden="true"></div>
+  <div class="ambient ambient-right" aria-hidden="true"></div>
+
+  <main class="app-shell" data-game-root>
+    <header class="hero-panel">
+      <h1>Hangman Studio</h1>
+      <p class="hero-copy">
+        Build confidence in TypeScript while playing a polished Hangman experience with keyboard support,
+        category tracking, and real-time runtime health checks.
+      </p>
+      <div class="hero-actions">
+        <button class="btn btn-solid" type="button" data-action="new-game">New Round</button>
+        <span class="runtime-pill" data-runtime-status>System check: waiting for startup...</span>
+      </div>
+    </header>
+
+    <section class="game-grid">
+      <aside class="panel panel-gallows" aria-label="Hangman drawing">
+        <h2>Gallows</h2>
+        <div class="gallows-wrap">
+          <div class="gallows" data-gallows>
+            <div class="part part-1" data-part-index="1"></div>
+            <div class="part part-2" data-part-index="2"></div>
+            <div class="part part-3" data-part-index="3"></div>
+            <div class="part part-4" data-part-index="4"></div>
+            <div class="part part-5" data-part-index="5"></div>
+            <div class="part part-6" data-part-index="6"></div>
+            <div class="part part-7" data-part-index="7"></div>
+            <div class="part part-8" data-part-index="8"></div>
+          </div>
+        </div>
+        <p class="meter">Mistakes <strong data-miss-count>0</strong>/<span data-max-miss>8</span></p>
+      </aside>
+
+      <section class="panel panel-playground" aria-label="Hangman game controls">
+        <div class="meta-row">
+          <p class="meta-label">Category</p>
+          <p class="meta-value" data-category>Loading...</p>
+        </div>
+
+        <div class="hint-panel" aria-live="polite">
+          <div class="hint-head">
+            <p class="hint-label">Hint</p>
+            <p class="hint-type" data-hint-type>General</p>
+          </div>
+          <p class="hint-text" data-hint-text>Loading hint...</p>
+          <p class="hint-meta" data-hint-meta></p>
+        </div>
+
+        <div class="word-board" data-word-board aria-live="polite"></div>
+        <div class="letters-board" data-letters-board aria-label="Letter keyboard"></div>
+      </section>
+    </section>
+  </main>
+
+  <div class="result-overlay" data-result-overlay hidden>
+    <section class="result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <h2 id="result-title" data-result-title>Round Finished</h2>
+      <p data-result-message></p>
+      <button class="btn btn-solid" type="button" data-action="play-again">Play Again</button>
+    </section>
+  </div>
+</body>
+
+</html>
