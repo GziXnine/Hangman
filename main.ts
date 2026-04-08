@@ -1,9 +1,5 @@
 type GameStatus = "playing" | "won" | "lost";
 
-type RuntimeWindow = Window & {
-  __HANGMAN_TS_READY__?: boolean;
-};
-
 interface GameState {
   word: string;
   category: string;
@@ -12,11 +8,6 @@ interface GameState {
   guessed: Set<string>;
   misses: number;
   status: GameStatus;
-}
-
-interface RuntimeReadyDetail {
-  status: "ok";
-  version: string;
 }
 
 interface DomRefs {
@@ -465,3 +456,300 @@ const WORD_BANK: WordBank = {
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const MAX_MISSES = 8;
+
+class HangmanGame {
+  private state: GameState;
+  private readonly refs: DomRefs;
+  private readonly maxMisses = MAX_MISSES;
+
+  constructor() {
+    this.refs = this.collectDomRefs();
+    this.state = this.createState();
+    this.refs.maxMissCount.textContent = String(this.maxMisses);
+
+    this.bindEvents();
+    this.render();
+  }
+
+  private readonly handleKeyboardInput = (event: KeyboardEvent) => {
+    if (this.state.status !== "playing" || event.repeat) return;
+
+    const keyLetter = this.normalizeLetter(event.key);
+    if (!this.isPlayableLetter(keyLetter)) return;
+
+    this.handleGuess(keyLetter);
+  };
+
+  private bindEvents(): void {
+    this.refs.newGameButton.addEventListener("click", () => {
+      this.startNewRound();
+    });
+
+    this.refs.playAgainButton.addEventListener("click", () => {
+      this.startNewRound();
+    });
+
+    this.refs.lettersBoard.addEventListener("click", (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const letterButton = target.closest<HTMLButtonElement>(
+        "button[data-letter]",
+      );
+      if (!letterButton || !letterButton.dataset.letter) {
+        return;
+      }
+
+      this.handleGuess(letterButton.dataset.letter);
+    });
+
+    window.addEventListener("keydown", this.handleKeyboardInput);
+  }
+
+  private startNewRound(): void {
+    this.state = this.createState();
+    this.hideResult();
+    this.render();
+  }
+
+  private handleGuess(rawLetter: string): void {
+    if (this.state.status !== "playing") {
+      return;
+    }
+
+    const letter = this.normalizeLetter(rawLetter);
+    if (!this.isPlayableLetter(letter) || this.state.guessed.has(letter)) {
+      return;
+    }
+
+    this.state.guessed.add(letter);
+
+    if (!this.state.word.includes(letter)) {
+      this.state.misses += 1;
+    }
+
+    this.state.status = this.resolveStatus();
+    this.render();
+  }
+
+  private resolveStatus(): GameStatus {
+    if (this.hasSolvedWord()) {
+      return "won";
+    }
+
+    if (this.state.misses >= this.maxMisses) {
+      return "lost";
+    }
+
+    return "playing";
+  }
+
+  private hasSolvedWord(): boolean {
+    const requiredLetters = new Set<string>(
+      this.getPlayableLetters(this.state.word),
+    );
+
+    return [...requiredLetters].every((letter) =>
+      this.state.guessed.has(letter),
+    );
+  }
+
+  private getPlayableLetters(value: string): string[] {
+    return [...value].filter((char) => this.isPlayableLetter(char));
+  }
+
+  private render(): void {
+    this.renderCategory();
+    this.renderHint();
+    this.renderWordBoard();
+    this.renderLettersBoard();
+    this.renderGallows();
+    this.renderMissMeter();
+    this.renderResult();
+  }
+
+  private renderCategory(): void {
+    this.refs.category.textContent = this.state.category;
+  }
+
+  private renderHint(): void {
+    this.refs.hintType.textContent = this.state.hintType;
+    this.refs.hintText.textContent = this.state.hint;
+
+    const letterCount = this.getPlayableLetters(this.state.word).length;
+    const wordCount = this.state.word
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+    const wordLabel = wordCount === 1 ? "word" : "words";
+
+    this.refs.hintMeta.textContent = `${letterCount} letters - ${wordCount} ${wordLabel}`;
+  }
+
+  private renderWordBoard(): void {
+    this.refs.wordBoard.innerHTML = "";
+
+    for (const char of this.state.word) {
+      const slot = document.createElement("span");
+      slot.className = "word-slot";
+
+      if (this.isPlayableLetter(char)) {
+        if (this.state.guessed.has(char)) {
+          slot.textContent = char;
+          slot.classList.add("revealed");
+        }
+      } else {
+        slot.classList.add("is-space", "revealed");
+        if (char.trim() !== "") {
+          slot.textContent = char;
+        }
+      }
+
+      this.refs.wordBoard.appendChild(slot);
+    }
+  }
+
+  private renderLettersBoard(): void {
+    this.refs.lettersBoard.innerHTML = "";
+    const isLock = this.state.status !== "playing";
+
+    ALPHABET.forEach((letter) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "letter-key";
+      button.dataset.letter = letter;
+      button.textContent = letter;
+
+      const isUsed = this.state.guessed.has(letter);
+      if (isUsed) {
+        button.classList.add("used");
+      }
+
+      button.disabled = isLock || isUsed;
+      this.refs.lettersBoard.appendChild(button);
+    });
+  }
+
+  private renderGallows(): void {
+    this.refs.gallowsParts.forEach((part, index) => {
+      const isVisible = index > 0 && index <= this.state.misses;
+      part.classList.toggle("visible", isVisible);
+    });
+  }
+
+  private renderMissMeter(): void {
+    this.refs.missCount.textContent = String(this.state.misses);
+  }
+
+  private renderResult(): void {
+    if (this.state.status === "playing") {
+      this.hideResult();
+      return;
+    }
+
+    this.refs.resultOverlay.hidden = false;
+
+    if (this.state.status === "won") {
+      this.refs.resultTitle.textContent = "You Cracked The Word";
+      this.refs.resultMessage.textContent = `Great job. You solved it with ${this.state.misses} mistake${this.state.misses === 1 ? "" : "s"}.`;
+      return;
+    }
+
+    this.refs.resultTitle.textContent = "Round Lost";
+    this.refs.resultMessage.textContent = `The word was ${this.state.word}. Hint: ${this.state.hint}. Start a new round and try again.`;
+  }
+
+  private hideResult(): void {
+    this.refs.resultOverlay.hidden = true;
+  }
+
+  private createState(): GameState {
+    const categories = Object.keys(WORD_BANK) as Array<keyof typeof WORD_BANK>;
+    const category = this.pickRandom(categories);
+    const entriesInCategory = WORD_BANK[category];
+
+    if (!entriesInCategory || entriesInCategory.length === 0) {
+      throw new Error(
+        `No words available in the selected category: ${category}`,
+      );
+    }
+
+    const entry = this.pickRandom(entriesInCategory);
+    const wordCap = entry.word.toUpperCase();
+
+    return {
+      word: wordCap,
+      category,
+      hint: entry.hint,
+      hintType: entry.hintType,
+      guessed: new Set<string>(),
+      misses: 0,
+      status: "playing",
+    };
+  }
+
+  private pickRandom<T>(items: readonly T[]): T {
+    if (items.length === 0) {
+      throw new Error("Cannot pick a random item from an empty array.");
+    }
+
+    const index = Math.floor(Math.random() * items.length);
+    const selectedItem = items[index];
+    if (selectedItem === undefined) {
+      throw new Error("Failed to pick a random item.");
+    }
+
+    return selectedItem;
+  }
+
+  private normalizeLetter(value: string): string {
+    return value.trim().toUpperCase().slice(0, 1);
+  }
+
+  private isPlayableLetter(char: string): boolean {
+    return /^[A-Z]$/.test(char);
+  }
+
+  private must<T extends Element>(selector: string): T {
+    const element = document.querySelector<T>(selector);
+    if (!element) {
+      throw new Error(`Missing required element: ${selector}`);
+    }
+
+    return element;
+  }
+
+  private collectDomRefs(): DomRefs {
+    const gallowsParts = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-part-index]"),
+    );
+    if (gallowsParts.length === 0) {
+      throw new Error("Missing required hangman parts.");
+    }
+
+    return {
+      category: this.must<HTMLElement>("[data-category]"),
+      hintType: this.must<HTMLElement>("[data-hint-type]"),
+      hintText: this.must<HTMLElement>("[data-hint-text]"),
+      hintMeta: this.must<HTMLElement>("[data-hint-meta]"),
+      wordBoard: this.must<HTMLElement>("[data-word-board]"),
+      lettersBoard: this.must<HTMLElement>("[data-letters-board]"),
+      missCount: this.must<HTMLElement>("[data-miss-count]"),
+      maxMissCount: this.must<HTMLElement>("[data-max-miss]"),
+      gallowsParts,
+      resultOverlay: this.must<HTMLElement>("[data-result-overlay]"),
+      resultTitle: this.must<HTMLElement>("[data-result-title]"),
+      resultMessage: this.must<HTMLElement>("[data-result-message]"),
+      newGameButton: this.must<HTMLButtonElement>("[data-action='new-game']"),
+      playAgainButton: this.must<HTMLButtonElement>(
+        "[data-action='play-again']",
+      ),
+    };
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    new HangmanGame();
+  } catch (error) {
+    console.error("Error initializing Hangman game:", error);
+  }
+});
